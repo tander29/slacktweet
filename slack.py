@@ -6,52 +6,96 @@ import datetime
 import signal
 from slackclient import SlackClient
 from functools import partial
-import threading
-import re
 import logging
 
 exit_flag = False
+started = False
 
-pbjtime_bot = {
-    'id': 'UFC5PM47',
-    'name': 'pbjtime',
-    'real_name': 'pbjtime',
-    'slack_token': os.environ["SLACK_API_TOKEN"],
-    'channel': 'CFMDNFA58'
+bot_commands = {
+    'help': 'returns list of commands that can be used',
+    'add': 'adds topic to search for on twitter',
+    'ping': 'shows uptime of bot',
+    'exit': 'stops twitter and slack bots.',
+    'start': 'starts twitter bot listening to topic list',
+    'time': 'starts slack bot.'
 }
 
 
-class SlackNotConnected(Exception):
-    pass
-
-
-class slack_bot:
+class slack_bot(SlackClient):
     """slack_bot class."""
-    def __init__(self, slack_bot, SlackClient):
-        self.slack_bot = slack_bot
-        self.sc = SlackClient(slack_bot['slack_token'])
-        self.channel = ''
-        self.message = ''
+    def __init__(self, token, channel, logger, start_time, bot_id=None):
+        self.sc = SlackClient(token)
+        self.channel = channel
+        self.logger = logger
+        self.start_time = start_time
+        self.bot_id = bot_id
+        if not self.bot_id and self.sc.rtm_connect(with_team_state=False):
+            response = self.sc.api_call('auth.test')
+            self.name = response.get('user')
+            self.bot_id = response.get('user_id')
+        self.at_bot = '<@' + self.bot_id + '>'
 
-    def start_stream(self):
-        return self.sc.rtm_connect()
+    def __enter__(self):
+        """returns slack obj and connects to rtm if not."""
+        if self.sc.server.connected:
+            return self
+        else:
+            self.sc.rtm_connect(with_team_state=False)
+            return self
+
+    def __exit__(self, type, value, traceback):
+        """lets program know that it is exiting slackbot."""
+        self.logger.info('Exiting slack_bot')
 
     def read_stream(self):
-        try:
-            return self.sc.rtm_read()
-        except SlackNotConnected as e:
-            print('not connected to slack. {}'.format(e))
+        """reads stream from slack_client connections."""
+        return self.sc.rtm_read()
 
     def parse_stream(self, content):
         """takes in content from stream and looks for pbjtime mentions."""
         for item in content:
-            if 'type' in item and item['type'] == 'message' and 'text' in item:
-                self.message = item['text']
-                self.channel = item['channel']
+            if 'text' in item and item['text'].startswith(self.at_bot):
+                text = item['text'].split(self.at_bot)
+                chan = item['channel']
+                return (text[1].strip(), chan)
+        return (None, None)
 
-    def send_message(self, channel):
-        mess = "it's peanut butter jelly time!"
-        self.sc.rtm_send_message(channel, mess)
+    def handle_command(self, text):
+        """handles commands that are given and returns message to post."""
+        global started
+        args = text.split()
+        if args:
+            cmd = args[0].lower()
+        else:
+            cmd = ''
+        if not started and cmd != 'time':
+            return 'Peanut? Butter? Jelly?!? Time?!?!?!?!?!? (use time cmd to start pbjtime)'
+        if cmd not in bot_commands:
+            return 'Peanut Butter Jelly Time??? use help for more options.'
+        if cmd == 'help':
+            return 'these commands are possible: {}'.format(bot_commands)
+        if cmd == 'time':
+            started = True
+            return "IT'S PEANUT BUTTER JELLY TIME!!!!!!!!!! \n (help for more options)"
+        if cmd == 'ping':
+            uptime = datetime.datetime.now() - self.start_time
+            return 'Peanut Butter Jelly upTime: {}'.format(uptime)
+        if cmd == 'exit':
+            started = False
+            return "peanut butter jelly time :'( (goodbye)"
+        if cmd == 'start':
+            return 'command does not work yet'
+        if cmd == 'add':
+            return 'command does not work yet'
+        return None
+
+    def post_command_message(self, message, channel):
+        """posts message after command is completed."""
+        self.sc.rtm_send_message(channel, message)
+
+    def post_twit_mess(self, message):
+        """Posts message from twitter bot to initial channel."""
+        self.sc.rtm_send_message(self.channel, message)
 
 
 def exit_logger(logger, app_start_time):
@@ -125,20 +169,23 @@ def main():
     signal.signal(signal.SIGINT, partial(sig_handler, logger))
     signal.signal(signal.SIGTERM, partial(sig_handler, logger))
 
-    sc = slack_bot(pbjtime_bot, SlackClient)
-    sc.start_stream()
-    print(sc.sc)
+    st = os.getenv('SLACK_API_TOKEN')
+    ch = os.getenv('CHANNEL')
+    bi = os.getenv('BOT_ID')
 
-    while sc.sc.server.connected and not exit_flag:
-        stream = sc.read_stream()
-        sc.parse_stream(stream)
-        # print(stream)
-        # sc.send_message(sc.slack_bot['channel'])
-        # print(self.sc.server.users)
-        time.sleep(1)
+    with slack_bot(st, ch, logger, app_start_time, bot_id=bi) as sb:
+        while not exit_flag:
+            stream = sb.read_stream()
+            text, chan = sb.parse_stream(stream)
+            if text is not None and chan:
+                message = sb.handle_command(text)
+                if message:
+                    sb.post_command_message(message, chan)
+            time.sleep(1)
 
     exit_logger(logger, app_start_time)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
