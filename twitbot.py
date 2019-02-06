@@ -56,7 +56,7 @@ class WatchTwitter(tweepy.StreamListener):
         return self
 
     def __exit__(self, type, value, traceback):
-        if self.stream.running:
+        if self.stream is not None and self.stream.running:
             self.close_stream()
 
     def add_subscription(self, subscribe_to):
@@ -130,18 +130,18 @@ class WatchTwitter(tweepy.StreamListener):
             self.master_timestamp = self.stream_timestamp
 
 
-def log_config():
-    """Adjusts how info is displayed in log"""
-    return logging.basicConfig(
-        format=(
-            '%(asctime)s.%(msecs)03d %(name)-12s %(levelname)-8s '
-            '[%(threadName) -12s] %(message)s'),
-        datefmt='%Y-%m-%d %H:%M:%S')
+# def log_config():
+#     """Adjusts how info is displayed in log"""
+#     return logging.basicConfig(
+#         format=(
+#             '%(asctime)s.%(msecs)03d %(name)-12s %(levelname)-8s '
+#             '[%(threadName) -12s] %(message)s'),
+#         datefmt='%Y-%m-%d %H:%M:%S')
 
 
-def log_set_level():
-    """Sets defaulf log level"""
-    logger.setLevel(logging.DEBUG)
+# def log_set_level():
+#     """Sets defaulf log level"""
+#     logger.setLevel(logging.DEBUG)
 
 
 def init_logger():
@@ -162,22 +162,22 @@ def init_logger():
     logger.addHandler(console_handler)
 
 
-def main():
-    global exit_flag
-    log_config()
-    log_set_level()
+# def main():
+#     global exit_flag
+#     log_config()
+#     log_set_level()
 
-    tb = WatchTwitter()
-    tb.init_stream('python')
-    while not exit_flag:
-        time.sleep(5)
-        tb.pause_stream()
-        time.sleep(5)
-        tb.add_subscription('Trump')
-        time.sleep(5)
-        tb.remove_subscription('Trump')
+#     tb = WatchTwitter()
+#     tb.init_stream('python')
+#     while not exit_flag:
+#         time.sleep(5)
+#         tb.pause_stream()
+#         time.sleep(5)
+#         tb.add_subscription('Trump')
+#         time.sleep(5)
+#         tb.remove_subscription('Trump')
 
 
-if __name__ == "__main__":
-    main()
-    pass
+# if __name__ == "__main__":
+#     main()
+#     pass

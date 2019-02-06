@@ -7,7 +7,7 @@ import signal
 from slackclient import SlackClient
 from functools import partial
 import logging
-import twitbot
+from twitbot import WatchTwitter
 import pprint
 
 logger = logging.getLogger(os.path.basename(__file__))
@@ -80,7 +80,7 @@ class slack_bot(SlackClient):
         args = text.lower().split()
         if args:
             cmd = args[0].lower()
-            logger.info('{} cmd was issued.')
+            logger.info('{} cmd was issued.'.format(cmd))
         else:
             cmd = ''
         args = args[1:]
@@ -89,7 +89,7 @@ class slack_bot(SlackClient):
         elif cmd not in bot_commands:
             return 'Peanut Butter Jelly Time??? use help for more options.'
         elif cmd == 'help':
-            return 'these commands are possible: {}'.format(bot_commands)
+            return 'these commands are possible: {}'.format(pp.pformat(bot_commands))
         elif cmd == 'time':
             started = True
             return "IT'S PEANUT BUTTER JELLY TIME!! \n(help for more options)"
@@ -130,6 +130,7 @@ class slack_bot(SlackClient):
             tb.subscriptions = []
             return 'all subscriptions removed!'
         elif cmd == 'list':
+            logger.info('channel list: {}').format(subscr)
             return 'current subscriptons: \n {}'.format(subscr)
         elif cmd == 'stop':
             logger.info('Stopping twitter stream')
@@ -141,20 +142,21 @@ class slack_bot(SlackClient):
         else:
             return None
 
-    def post_command_message(self, message, channel):
+    def post_command_message(self, mess, channel):
         """posts message after command is completed."""
-        self.sc.rtm_send_message(channel, message)
+        logger.info('Sent message: {} to channel: {}'.format(mess, channel))
+        self.sc.rtm_send_message(channel, mess)
 
-    def post_twit_mess(self, message):
+    def post_twit_mess(self, mess):
         """Posts message from twitter bot to initial channel."""
-        self.sc.api_call("chat.postMessage", channel=self.channel, text=message)
+        self.sc.api_call("chat.postMessage", channel=self.channel, text=mess)
 
     def channel_list(self):
         logger.info('requesting channel list')
         logger.info(pp.pformat(self.sc.api_call("channels.list")))
 
 
-def exit_logger(logger, app_start_time):
+def exit_logger(app_start_time):
     """Makes ending banner for logging."""
     uptime = datetime.datetime.now() - app_start_time
     logger.info(
@@ -166,7 +168,7 @@ def exit_logger(logger, app_start_time):
         .format(__file__, str(uptime)))
 
 
-def init_logger(logger, start_time):
+def init_logger(start_time):
     """Makes starting banner for logging."""
 
     logger.info(
@@ -183,13 +185,21 @@ def create_logger():
     """Creates logger for program."""
     logger.setLevel(logging.DEBUG)
 
+    logging.basicConfig(
+        filename='slacktweet.log',
+        format=(
+            '%(asctime)s.%(msecs)03d %(name)-12s %(levelname)-8s '
+            '[%(threadName) -12s] %(message)s'),
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging.DEBUG)
+
     formatter = logging.Formatter(
-        '%(asctime)s.%(msecs)03d %(name)-12s \
-        %(levelname)-8s [%(threadName)-12s] %(message)s'
+        '%(asctime)s.%(msecs)03d %(name)-12s '
+        '%(levelname)-8s [%(threadName)-12s] %(message)s'
     )
 
     file_handler = logging.FileHandler('slacktweet.log')
-    file_handler.setFormatter(formatter)
+    # file_handler.setFormatter(formatter)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
@@ -216,7 +226,7 @@ def main():
     # start time
     app_start_time = datetime.datetime.now()
     # make  beginning banner
-    init_logger(logger, app_start_time)
+    init_logger(app_start_time)
 
     # handlers for SIGINT and SIGTERM
     # partial used to pass in more for parameter
@@ -228,8 +238,8 @@ def main():
     bi = os.getenv('BOT_ID')
 
     with slack_bot(st, ch, bot_id=bi) as sb:
-        with twitbot.WatchTwitter() as tb:
-            twitbot.init_logger()
+        with WatchTwitter() as tb:
+            # twitbot.init_logger()
             tb.register_slack(sb.post_twit_mess)
             while not exit_flag:
                 stream = sb.read_stream()
@@ -240,7 +250,7 @@ def main():
                         sb.post_command_message(message, chan)
                 time.sleep(1)
 
-    exit_logger(logger, app_start_time)
+    exit_logger(app_start_time)
     return 0
 
 
