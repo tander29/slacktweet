@@ -1,12 +1,22 @@
 # -*- coding: utf-8 -*-
 
+__author__ = "Aaron Jackson, Travis Anderson"
+
+"""Slackbot Class and SlackTweet Runner.
+A Slackbot Class is set up to communicate with slack to post messages and to
+take in commands. The commands allows the slackbot to add and remove
+subsriptions from a connected twitter bot.
+"""
+
 import os
+import argparse
 import time
 import datetime
 import signal
 from slackclient import SlackClient
 from functools import partial
 import logging
+from logging.handlers import RotatingFileHandler
 from twitbot import WatchTwitter
 import pprint
 
@@ -16,7 +26,9 @@ pp = pprint.PrettyPrinter(indent=2)
 exit_flag = False
 started = False
 subscr = []
+stats = {}
 
+# commands for slack. posted to slack when help is used.
 bot_commands = {
     'help': 'returns list of commands that can be used',
     'add': 'adds subscription to search for on twitter',
@@ -28,11 +40,12 @@ bot_commands = {
     'removeall': 'removes all subscriptions',
     'list': 'shows current subscriptions',
     'stop': 'stops current twitter stream (subscriptions not deleted)',
-    'channels': 'to check all available channels'
+    'channels': 'to check all available channels',
+    'stats': 'shows number of tweets for current subscriptions'
 }
 
 
-class slack_bot(SlackClient):
+class Slack_bot(SlackClient):
     """slack_bot class."""
     def __init__(self, token, channel, bot_id=None):
         self.sc = SlackClient(token)
@@ -65,7 +78,6 @@ class slack_bot(SlackClient):
 
     def parse_stream(self, content):
         """takes in content from stream and looks for pbjtime mentions."""
-        # logger.info(content)
         for item in content:
             if 'text' in item and item['text'].startswith(self.at_bot):
                 text = item['text'].split(self.at_bot)
@@ -77,6 +89,7 @@ class slack_bot(SlackClient):
         """handles commands that are given and returns message to post."""
         global started
         global subscr
+        global stats
         args = text.lower().split()
         if args:
             cmd = args[0].lower()
@@ -85,36 +98,53 @@ class slack_bot(SlackClient):
             cmd = ''
         args = args[1:]
         if not started and cmd != 'time':
+            logger.info('bot not started yet. ignoring command.')
             return 'Peanut? Butter? Jelly?!? Time?!?!? (time cmd to start me)'
         elif cmd not in bot_commands:
+            logger.info('unknown command issued')
             return 'Peanut Butter Jelly Time??? use help for more options.'
         elif cmd == 'help':
-            return 'these commands are possible: {}'.format(pp.pformat(bot_commands))
+            return 'these commands are possible:\n\
+                {}'.format(pp.pformat(bot_commands))
         elif cmd == 'time':
             started = True
+            logger.info('bot initialized in slack.')
             return "IT'S PEANUT BUTTER JELLY TIME!! \n(help for more options)"
         elif cmd == 'ping':
             uptime = datetime.datetime.now() - self.start_time
+            logger.info('current uptime: {}'.format(uptime))
             return 'Peanut Butter Jelly upTime: {}'.format(uptime)
         elif cmd == 'exit':
             started = False
             tb.close_stream()
             subscr = []
             tb.subscriptions = []
+            stats = {}
+            logger.info('pbjtime leaving slack.')
             return "peanut butter jelly time :'( (goodbye)"
         elif cmd == 'start':
             subscr = list(set(subscr + args))
             if not subscr:
+                logger.info('no subscr. ignoring and not starting stream.')
                 return 'Please add subscriptions so I can find tweets.'
             tb.init_stream(subscr)
+            logger.info('started stream with subscriptions: {}'.format(subscr))
+            for subs in subscr:
+                if subs not in stats:
+                    stats[subs] = 0
             if args:
                 return 'Added subscriptions: {}'.format(args)
             return 'Started with subcriptions: {}'.format(subscr)
         elif cmd == 'add':
             subscr = list(set(subscr + args))
             if not subscr or not args:
+                logger.info('no new subscriptions. ignoring')
                 return 'Please add new subscriptions so I can find tweets.'
             tb.init_stream(subscr)
+            for subs in subscr:
+                if subs not in stats:
+                    stats[subs] = 0
+            logger.info('added new subcriptions; restarting stream.')
             return 'Added subscriptions: {}'.format(args)
         elif cmd == 'remove':
             removed = []
@@ -122,15 +152,26 @@ class slack_bot(SlackClient):
                 if arg in subscr:
                     subscr.remove(arg)
                     removed.append(arg)
-            tb.init_stream(subscr)
-            return 'removed subcriptions: {} and restarted.'.format(args)
+                    if arg in stats:
+                        del stats[arg]
+            if removed:
+                logger.info('removed subcriptions: {}'.format(arg))
+                tb.init_stream(subscr)
+                logger.info('restarted twitter stream.')
+                return 'removed subcriptions: {} and restarted.'.format(arg)
+            else:
+                logger.info('no subscriptions matching input. ignoring')
+                return 'No subscriptions removed. use list to see current.'
+
         elif cmd == 'removeall':
             subscr = []
             tb.close_stream()
             tb.subscriptions = []
+            stats = {}
+            logger.info('All subscriptions removed')
             return 'all subscriptions removed!'
         elif cmd == 'list':
-            logger.info('channel list: {}').format(subscr)
+            logger.info('channel list: {}'.format(subscr))
             return 'current subscriptons: \n {}'.format(subscr)
         elif cmd == 'stop':
             logger.info('Stopping twitter stream')
@@ -139,21 +180,40 @@ class slack_bot(SlackClient):
             return 'Twitter stream has been stopped.'
         elif cmd == 'channels':
             self.channel_list()
+        elif cmd == 'stats':
+            logger.info('stats: {}'.format(pp.pformat(stats)))
+            return 'subscription stats: {}'.format(pp.pformat(stats))
         else:
+            logger.warning('made it through if else block: {}'.format(cmd))
             return None
 
     def post_command_message(self, mess, channel):
         """posts message after command is completed."""
-        logger.info('Sent message: {} to channel: {}'.format(mess, channel))
+        logger.info('Sent response to channel: {}'.format(channel))
         self.sc.rtm_send_message(channel, mess)
 
     def post_twit_mess(self, mess):
         """Posts message from twitter bot to initial channel."""
+        for scr in subscr:
+            if mess.lower().find(scr) >= -1:
+                stats[scr] += 1
         self.sc.api_call("chat.postMessage", channel=self.channel, text=mess)
 
     def channel_list(self):
         logger.info('requesting channel list')
         logger.info(pp.pformat(self.sc.api_call("channels.list")))
+
+
+def sig_handler(logger, sig_num, frame):
+    """Handles OS signals SIGTERM and SIGINT."""
+    global exit_flag
+    sigs = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
+                if v.startswith('SIG') and not v.startswith('SIG_'))
+    logger.warning('Received OS Signal: {}'.format(sigs[sig_num]))
+
+    # only exit if it is a sigterm or sigint
+    if sig_num == signal.SIGINT or sig_num == signal.SIGTERM:
+        exit_flag = True
 
 
 def exit_logger(app_start_time):
@@ -181,48 +241,66 @@ def init_logger(start_time):
     )
 
 
-def create_logger():
+def create_logger(logging_level):
     """Creates logger for program."""
-    logger.setLevel(logging.DEBUG)
 
-    logging.basicConfig(
-        filename='slacktweet.log',
-        format=(
-            '%(asctime)s.%(msecs)03d %(name)-12s %(levelname)-8s '
-            '[%(threadName) -12s] %(message)s'),
-        datefmt='%Y-%m-%d %H:%M:%S',
-        level=logging.DEBUG)
+    logger.setLevel(logging_level)
 
     formatter = logging.Formatter(
-        '%(asctime)s.%(msecs)03d %(name)-12s '
-        '%(levelname)-8s [%(threadName)-12s] %(message)s'
+        fmt='%(asctime)s.%(msecs)03d %(name)-12s '
+        '%(levelname)-8s [%(threadName)-12s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
     )
 
-    file_handler = logging.FileHandler('slacktweet.log')
-    # file_handler.setFormatter(formatter)
+    file_handler = RotatingFileHandler("slacktweet.log", maxBytes=10000,
+                                       backupCount=10)
+    file_handler.setFormatter(formatter)
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
 
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    logging.basicConfig(
+        format=(
+            '%(asctime)s.%(msecs)03d %(name)-12s %(levelname)-8s '
+            '[%(threadName) -12s] %(message)s'),
+        datefmt='%Y-%m-%d %H:%M:%S',
+        level=logging_level,
+        handlers=[file_handler, console_handler]
+    )
 
 
-def sig_handler(logger, sig_num, frame):
-    """Handles OS signals SIGTERM and SIGINT."""
-    global exit_flag
-    sigs = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
-                if v.startswith('SIG') and not v.startswith('SIG_'))
-    logger.warning('Received OS Signal: {}'.format(sigs[sig_num]))
+def determine_level(log_level):
+    """returns value for log level given. default INFO"""
+    levels_dict = {
+        'critical': 50,
+        'error': 40,
+        'warning': 30,
+        'info': 20,
+        'debug': 10,
+    }
 
-    # only exit if it is a sigterm or sigint
-    if sig_num == signal.SIGINT or sig_num == signal.SIGTERM:
-        exit_flag = True
+    if log_level.lower() in levels_dict:
+        return levels_dict[log_level.lower()]
+    else:
+        return 20
+
+
+def create_parser():
+    """Creates Parser to pull in log level provided."""
+    parser = argparse.ArgumentParser(description='SlackTweet Arguments')
+    parser.add_argument(
+        '-l', '--log',
+        help='Log Level for logging. (Default=INFO)',
+        type=str,
+        default='INFO',
+    )
+    return parser
 
 
 def main():
-
-    create_logger()
+    parser = create_parser().parse_args()
+    log_level_value = determine_level(parser.log)
+    create_logger(log_level_value)
     # start time
     app_start_time = datetime.datetime.now()
     # make  beginning banner
@@ -237,18 +315,22 @@ def main():
     ch = os.getenv('CHANNEL')
     bi = os.getenv('BOT_ID')
 
-    with slack_bot(st, ch, bot_id=bi) as sb:
+    with Slack_bot(st, ch, bot_id=bi) as sb:
         with WatchTwitter() as tb:
-            # twitbot.init_logger()
             tb.register_slack(sb.post_twit_mess)
             while not exit_flag:
-                stream = sb.read_stream()
-                text, chan = sb.parse_stream(stream)
-                if text is not None and chan:
-                    message = sb.handle_command(text, tb)
-                    if message:
-                        sb.post_command_message(message, chan)
-                time.sleep(1)
+                try:
+                    stream = sb.read_stream()
+                    text, chan = sb.parse_stream(stream)
+                    if text is not None and chan:
+                        message = sb.handle_command(text, tb)
+                        if message:
+                            sb.post_command_message(message, chan)
+                    time.sleep(1)
+                except Exception as e:
+                    logger.error('UnCaught exception: {}: {}'
+                                 .format(type(e).__name__, e))
+                    time.sleep(1)
 
     exit_logger(app_start_time)
     return 0
