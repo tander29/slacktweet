@@ -314,6 +314,7 @@ def main():
     st = os.getenv('SLACK_API_TOKEN')
     ch = os.getenv('CHANNEL')
     bi = os.getenv('BOT_ID')
+    # handles exit outside of main function
     while not exit_flag:
         try:
             with Slack_bot(st, ch, bot_id=bi) as sb:
