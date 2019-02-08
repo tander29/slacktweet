@@ -51,9 +51,10 @@ class TestException(Exception):
 
 class Slack_bot(SlackClient):
     """slack_bot class."""
-    def __init__(self, token, channel, bot_id=None):
+    def __init__(self, token, twit_channel, home_channel, bot_id=None):
         self.sc = SlackClient(token)
-        self.channel = channel
+        self.channel = twit_channel
+        self.home = home_channel
         self.start_time = datetime.datetime.now()
         self.bot_id = bot_id
         if not self.bot_id and self.sc.rtm_connect(with_team_state=False):
@@ -70,7 +71,7 @@ class Slack_bot(SlackClient):
         else:
             logger.info('SlackBot connected to rtm stream')
             self.sc.rtm_connect(with_team_state=False)
-        self.post_command_message(mess, self.channel)
+        self.post_command_message(mess, self.home)
         return self
 
     def __exit__(self, type, value, traceback):
@@ -322,10 +323,11 @@ def main():
     st = os.getenv('SLACK_API_TOKEN')
     ch = os.getenv('CHANNEL')
     bi = os.getenv('BOT_ID')
+    home = os.getenv('HOME_CHANNEL')
     # handles exit outside of main function
     while not exit_flag:
         try:
-            with Slack_bot(st, ch, bot_id=bi) as sb:
+            with Slack_bot(st, ch, home, bot_id=bi) as sb:
                 with WatchTwitter() as tb:
                     tb.register_slack(sb.post_twit_mess)
                     while not exit_flag:
@@ -340,7 +342,7 @@ def main():
             logger.error('UnCaught exception: {}: {}'
                          .format(type(e).__name__, e))
             logger.info('restarting after error')
-            sb.post_command_message('restarting PBJTIME', sb.channel)
+            sb.post_command_message('restarting PBJTIME', home)
 
     exit_logger(app_start_time)
     return 0
