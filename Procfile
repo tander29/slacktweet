@@ -1,1 +1,1 @@
-web: python slack.py -l INFO
+worker: python slack.py -l INFO
