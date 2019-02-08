@@ -24,7 +24,6 @@ logger = logging.getLogger(os.path.basename(__file__))
 pp = pprint.PrettyPrinter(indent=2)
 
 exit_flag = False
-started = False
 subscr = []
 stats = {}
 
@@ -93,7 +92,6 @@ class Slack_bot(SlackClient):
 
     def handle_command(self, text, tb):
         """handles commands that are given and returns message to post."""
-        global started
         global subscr
         global stats
         args = text.lower().split()
@@ -103,17 +101,13 @@ class Slack_bot(SlackClient):
         else:
             cmd = ''
         args = args[1:]
-        if not started and cmd != 'time':
-            logger.info('bot not started yet. ignoring command.')
-            return 'Peanut? Butter? Jelly?!? Time?!?!? (time cmd to start me)'
-        elif cmd == 'raise':
+        if cmd == 'raise':
             logger.info('raise test exception')
             raise TestException
         elif cmd == 'help':
             return 'these commands are possible:\n\
                 {}'.format(pp.pformat(bot_commands))
         elif cmd == 'time':
-            started = True
             logger.info('bot initialized in slack.')
             return "IT'S PEANUT BUTTER JELLY TIME!! \n(help for more options)"
         elif cmd == 'ping':
@@ -121,7 +115,6 @@ class Slack_bot(SlackClient):
             logger.info('current uptime: {}'.format(uptime))
             return 'Peanut Butter Jelly upTime: {}'.format(uptime)
         elif cmd == 'exit':
-            started = False
             tb.close_stream()
             subscr = []
             tb.subscriptions = []
