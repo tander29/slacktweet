@@ -314,23 +314,27 @@ def main():
     st = os.getenv('SLACK_API_TOKEN')
     ch = os.getenv('CHANNEL')
     bi = os.getenv('BOT_ID')
-
-    with Slack_bot(st, ch, bot_id=bi) as sb:
-        with WatchTwitter() as tb:
-            tb.register_slack(sb.post_twit_mess)
-            while not exit_flag:
-                try:
-                    stream = sb.read_stream()
-                    text, chan = sb.parse_stream(stream)
-                    if text is not None and chan:
-                        message = sb.handle_command(text, tb)
-                        if message:
-                            sb.post_command_message(message, chan)
-                    time.sleep(1)
-                except Exception as e:
-                    logger.error('UnCaught exception: {}: {}'
-                                 .format(type(e).__name__, e))
-                    time.sleep(1)
+    while not exit_flag:
+        try:
+            with Slack_bot(st, ch, bot_id=bi) as sb:
+                with WatchTwitter() as tb:
+                    tb.register_slack(sb.post_twit_mess)
+                    while not exit_flag:
+                        try:
+                            stream = sb.read_stream()
+                            text, chan = sb.parse_stream(stream)
+                            if text is not None and chan:
+                                message = sb.handle_command(text, tb)
+                                if message:
+                                    sb.post_command_message(message, chan)
+                            time.sleep(1)
+                        except Exception as e:
+                            logger.error('UnCaught exception: {}: {}'
+                                         .format(type(e).__name__, e))
+                            time.sleep(1)
+        except Exception as e:
+            logger.error('UnCaught exception: {}: {}'
+                         .format(type(e).__name__, e))
 
     exit_logger(app_start_time)
     return 0
