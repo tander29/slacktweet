@@ -64,13 +64,14 @@ class Slack_bot(SlackClient):
 
     def __enter__(self):
         """returns slack obj and connects to rtm if not."""
+        mess = "PBJTIME is ONLINE!!!! (with a baseball bat)"
         if self.sc.server.connected:
             logger.info('SlackBot connected to rtm stream')
-            return self
         else:
             logger.info('SlackBot connected to rtm stream')
             self.sc.rtm_connect(with_team_state=False)
-            return self
+        self.post_command_message(mess, self.channel)
+        return self
 
     def __exit__(self, type, value, traceback):
         """lets program know that it is exiting slackbot."""
@@ -328,7 +329,6 @@ def main():
                 with WatchTwitter() as tb:
                     tb.register_slack(sb.post_twit_mess)
                     while not exit_flag:
-                        try:
                             stream = sb.read_stream()
                             text, chan = sb.parse_stream(stream)
                             if text is not None and chan:
@@ -336,15 +336,11 @@ def main():
                                 if message:
                                     sb.post_command_message(message, chan)
                             time.sleep(1)
-                        except Exception as e:
-                            logger.error('UnCaught exception: {}: {}'
-                                         .format(type(e).__name__, e))
-                            logger.info('continuing after error')
-                            time.sleep(1)
         except Exception as e:
             logger.error('UnCaught exception: {}: {}'
                          .format(type(e).__name__, e))
             logger.info('restarting after error')
+            sb.post_command_message('restarting PBJTIME', sb.channel)
 
     exit_logger(app_start_time)
     return 0
