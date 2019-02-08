@@ -336,6 +336,7 @@ def main():
                          .format(type(e).__name__, e))
             logger.info('restarting after error')
             sb.post_command_message('restarting PBJTIME', home)
+            time.sleep(1)
 
     exit_logger(app_start_time)
     return 0

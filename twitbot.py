@@ -58,6 +58,7 @@ class WatchTwitter(tweepy.StreamListener):
     def __exit__(self, type, value, traceback):
         """Context manager closes stream gracefully"""
         if self.stream is not None and self.stream.running:
+            logger.info('shutting down twitbot stream.')
             self.close_stream()
 
     def close_stream(self):
