@@ -45,6 +45,10 @@ bot_commands = {
 }
 
 
+class TestException(Exception):
+    pass
+
+
 class Slack_bot(SlackClient):
     """slack_bot class."""
     def __init__(self, token, channel, bot_id=None):
@@ -100,9 +104,9 @@ class Slack_bot(SlackClient):
         if not started and cmd != 'time':
             logger.info('bot not started yet. ignoring command.')
             return 'Peanut? Butter? Jelly?!? Time?!?!? (time cmd to start me)'
-        elif cmd not in bot_commands:
-            logger.info('unknown command issued')
-            return 'Peanut Butter Jelly Time??? use help for more options.'
+        elif cmd == 'raise':
+            logger.info('raise test exception')
+            raise TestException
         elif cmd == 'help':
             return 'these commands are possible:\n\
                 {}'.format(pp.pformat(bot_commands))
@@ -183,6 +187,9 @@ class Slack_bot(SlackClient):
         elif cmd == 'stats':
             logger.info('stats: {}'.format(pp.pformat(stats)))
             return 'subscription stats: {}'.format(pp.pformat(stats))
+        elif cmd not in bot_commands:
+            logger.info('unknown command issued')
+            return 'Peanut Butter Jelly Time??? use help for more options.'
         else:
             logger.warning('made it through if else block: {}'.format(cmd))
             return None
