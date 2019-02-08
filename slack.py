@@ -198,9 +198,8 @@ class Slack_bot(SlackClient):
         """Posts message from twitter bot to initial channel."""
         global stats
         global subscr
-        logger.info(mess)
-        for scr in subscr:
-            if mess.lower().find(scr) >= -1:
+        for scr in stats:
+            if scr in mess.lower():
                 stats[scr] += 1
         self.sc.api_call("chat.postMessage", channel=self.channel, text=mess)
 
