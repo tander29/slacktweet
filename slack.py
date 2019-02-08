@@ -339,10 +339,12 @@ def main():
                         except Exception as e:
                             logger.error('UnCaught exception: {}: {}'
                                          .format(type(e).__name__, e))
+                            logger.info('continuing after error')
                             time.sleep(1)
         except Exception as e:
             logger.error('UnCaught exception: {}: {}'
                          .format(type(e).__name__, e))
+            logger.info('restarting after error')
 
     exit_logger(app_start_time)
     return 0
