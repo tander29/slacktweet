@@ -196,6 +196,8 @@ class Slack_bot(SlackClient):
 
     def post_twit_mess(self, mess):
         """Posts message from twitter bot to initial channel."""
+        global stats
+        global subscr
         for scr in subscr:
             if mess.lower().find(scr) >= -1:
                 stats[scr] += 1
