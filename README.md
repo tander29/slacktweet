@@ -7,8 +7,9 @@ User's who have slack can access twitter firehose feed.
 Creators: Travis Anderson and Aaron Jackson
 
 Focal Points:
-Twitterbot - Travis
-Slackbot - Aaron
+Tweepy - Travis
+Slackclient - Aaron
+Logging and logic to run both bots: both individuals
 
 # To run locally:
 
@@ -22,6 +23,9 @@ Run program from the pipenv shell or push to heroku.
 \$pipenv shell
 
 > see set log level for next command to start up locally
+
+#Env Variables:
+Will need environment variables for slack bot, tweepy(twitter), and slack channel
 
 # Slack Set Up:
 
@@ -69,4 +73,4 @@ To handle the tweepy stream, needed multi-threading on the tweepy bot, had to do
 Follow instructions
 https://devcenter.heroku.com/articles/getting-started-with-python
 
-Remember to set terminal sessions env variables, need proc file
+Remember to set terminal sessions env variables, need proc file, runtime.txt with python version
